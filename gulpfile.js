@@ -15,9 +15,14 @@ var buffer = require('vinyl-buffer');
 var browserify = require('browserify');
 var watchify = require('watchify');
 var babel = require('babelify');
+var jasmine = require('gulp-jasmine-phantom');
+var karma = require('karma').server;
 
 function compile(watch) {
-  var bundler = watchify(browserify('./src/index.js', { debug: true }).transform(babel));
+  var bundler = watchify(browserify('./src/index.js', {
+    debug: true,
+    standalone: 'Cache'
+  }).transform(babel));
 
   function rebundle() {
     bundler.bundle()
@@ -49,6 +54,15 @@ function docs () {
     .pipe(gulp.dest('./doc'));
 }
 
+function test (done) {
+  karma.start({
+    configFile: __dirname + '/karma.conf.js',
+    singleRun: true,
+    sourceType: 'module'
+  }, done);
+}
+
+gulp.task('test', function(){ return test(); });
 gulp.task('doc', function(){ return docs(); });
 gulp.task('build', function() { return compile(); });
 gulp.task('watch', function() { return watch(); });
