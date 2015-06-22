@@ -1,7 +1,7 @@
 {
-  "name": "indexed_cache",
+  "name": "large_file_uploads",
   "version": "0.0.1",
-  "description": "caching through indexeddb",
+  "description": "fault taulerant large file uploads",
   "main": "src/index.js",
   "directories": {
     "example": "examples"
@@ -11,8 +11,10 @@
   },
   "devDependencies": {
     "babelify": "^6.1.2",
+    "body-parser": "^1.13.1",
     "brfs": "^1.4.0",
     "browserify": "^10.2.4",
+    "express": "^4.13.0",
     "gulp": "^3.9.0",
     "gulp-esperanto": "^0.2.0",
     "gulp-jasmine": "^2.0.1",
@@ -28,6 +30,7 @@
     "karma-jasmine": "^0.3.5",
     "karma-phantomjs-launcher": "^0.2.0",
     "phantomjs": "^1.9.17",
+    "posix": "^2.0.1",
     "vinyl-buffer": "^1.0.0",
     "vinyl-source-stream": "^1.1.0",
     "watchify": "^3.2.2"

@@ -21,7 +21,7 @@ var karma = require('karma').server;
 function compile(watch) {
   var bundler = watchify(browserify('./src/index.js', {
     debug: true,
-    standalone: 'Cache'
+    standalone: 'Uploader'
   }).transform(babel));
 
   function rebundle() {

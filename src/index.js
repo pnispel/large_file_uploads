@@ -1,72 +1,46 @@
 import Promise from "../lib/promise";
-import IDB from "./indexeddb";
+import FileUploader from "./file_uploader";
+import Util from "./util";
 
 /* -------------------------------------------------------------------------- */
 
-const Cache = {
-  /**
-   * set a cache item in indexeddb
-   *
-   * @param {String} key - a unique identifier for this blob
-   * @param {Blob} blob - the blob of data to be inserted
-   * @param {Integer} minutes_to_removal - time until removal from cache
-   */
-  set (key, blob, minutes_to_removal=60) {
-    let now = Date.now();
-    let millisecondsToRemoval = minutes_to_removal * 60 * 1000;
+const Uploader = {
+  __inputs: {},
+  __uploads: [],
 
-    IDB.addLedgerItem(key, {
-      timeInserted: now,
-      removalDate: now + millisecondsToRemoval,
-      blobId: key
-    });
+  watch: function (fileInput, key) {
+    let self = this;
 
-    IDB.addBlobItem(key, blob);
+    let handleFiles = (function (key) {
+      return function () {
+        let fileList = this.files;
+
+        if (fileList.length) {
+          self.__inputs[key] = fileList;
+        }
+      };
+    })(key);
+
+    this.__inputs[key] = [];
+
+    fileInput.addEventListener("change", handleFiles, false);
   },
 
-  /**
-   * remove a cached item from indexeddb
-   *
-   * @param {String} key - a unique identifier for this blob
-   */
-  remove (key) {
-    IDB.removeBlobItem(key);
-    IDB.removeLedgerItem(key);
-  },
-
-  /**
-   * update a cached item"s blob / redirects to Cache.set
-   *
-   * @param {String} key - a unique identifier for this blob
-   * @param {Blob} blob - the blob of data to be inserted
-   * @param {Integer} minutes_to_removal - time until removal from cache
-   */
-  update (key, blob, minutes_to_removal) {
-    return this.set.apply(this, arguments);
-  },
-
-  /**
-   * retrieve an item from the cache
-   *
-   * @param {String} key - a unique identifier for this blob
-   */
-  get (key) {
-    var promise = IDB.getBlobItem(key);
-
-    return promise;
-  },
-
-  __error (err) {
+  remove: function (key) {
 
   },
+
+  startUpload: function (key) {
+    let files = this.__inputs[key];
+
+    for (var i = 0; i < files.length; i++) {
+      let file = files[i];
+
+      this.__uploads.push(new FileUploader(file));
+    }
+  }
 };
 
 /* -------------------------------------------------------------------------- */
 
-IDB.db.then(function (db) {
-  console.log('cache init');
-});
-
-/* -------------------------------------------------------------------------- */
-
-export default Cache;
+export default Uploader;

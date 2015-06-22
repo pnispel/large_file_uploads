@@ -1,11 +1,2 @@
- ☐ add in node support
- ☐ ability to either pass a key or have one generated
- ✔ loop through existing data and remove old cached items @done (15-06-20 14:28)
- ☐ allow items other than blobs
- ✔ convert minutes to milliseconds and add that to the date to get removal @done (15-06-20 15:07)
- ☐ add error handling to promise.all
- ☐ finish readme
- ☐ do testing work
- ☐ clean up indexeddb.js
- ☐ documentation
- ☐ clean up gulpfile
+ ☐ acceptable file types
+ ☐ chunk size

@@ -1,4 +1,4 @@
-(function(f){if(typeof exports==="object"&&typeof module!=="undefined"){module.exports=f()}else if(typeof define==="function"&&define.amd){define([],f)}else{var g;if(typeof window!=="undefined"){g=window}else if(typeof global!=="undefined"){g=global}else if(typeof self!=="undefined"){g=self}else{g=this}g.Cache = f()}})(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
+(function(f){if(typeof exports==="object"&&typeof module!=="undefined"){module.exports=f()}else if(typeof define==="function"&&define.amd){define([],f)}else{var g;if(typeof window!=="undefined"){g=window}else if(typeof global!=="undefined"){g=global}else if(typeof self!=="undefined"){g=self}else{g=this}g.Uploader = f()}})(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
 // (c) copyright unscriptable.com / John Hann
 // License MIT
 // For more robust promises, see https://github.com/briancavalier/when.js.
@@ -118,88 +118,106 @@ Object.defineProperty(exports, "__esModule", {
   value: true
 });
 
+var _createClass = (function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; })();
+
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { "default": obj }; }
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
 
 var _libPromise = require("../lib/promise");
 
 var _libPromise2 = _interopRequireDefault(_libPromise);
 
-var _indexeddb = require("./indexeddb");
+var _util = require("./util");
 
-var _indexeddb2 = _interopRequireDefault(_indexeddb);
+var _util2 = _interopRequireDefault(_util);
 
-/* -------------------------------------------------------------------------- */
-
-var Cache = {
-  /**
-   * set a cache item in indexeddb
-   *
-   * @param {String} key - a unique identifier for this blob
-   * @param {Blob} blob - the blob of data to be inserted
-   * @param {Integer} minutes_to_removal - time until removal from cache
-   */
-  set: function set(key, blob) {
-    var minutes_to_removal = arguments[2] === undefined ? 60 : arguments[2];
-
-    var now = Date.now();
-    var millisecondsToRemoval = minutes_to_removal * 60 * 1000;
-
-    _indexeddb2["default"].addLedgerItem(key, {
-      timeInserted: now,
-      removalDate: now + millisecondsToRemoval,
-      blobId: key
-    });
-
-    _indexeddb2["default"].addBlobItem(key, blob);
-  },
-
-  /**
-   * remove a cached item from indexeddb
-   *
-   * @param {String} key - a unique identifier for this blob
-   */
-  remove: function remove(key) {
-    _indexeddb2["default"].removeBlobItem(key);
-    _indexeddb2["default"].removeLedgerItem(key);
-  },
-
-  /**
-   * update a cached item"s blob / redirects to Cache.set
-   *
-   * @param {String} key - a unique identifier for this blob
-   * @param {Blob} blob - the blob of data to be inserted
-   * @param {Integer} minutes_to_removal - time until removal from cache
-   */
-  update: function update(key, blob, minutes_to_removal) {
-    return this.set.apply(this, arguments);
-  },
-
-  /**
-   * retrieve an item from the cache
-   *
-   * @param {String} key - a unique identifier for this blob
-   */
-  get: function get(key) {
-    var promise = _indexeddb2["default"].getBlobItem(key);
-
-    return promise;
-  },
-
-  __error: function __error(err) {}
-};
+// source: http://creativejs.com/tutorials/advanced-uploading-techniques-part-1/
 
 /* -------------------------------------------------------------------------- */
 
-_indexeddb2["default"].db.then(function (db) {
-  console.log("cache init");
-});
+var FileUploader = (function () {
+  function FileUploader(file, options) {
+    _classCallCheck(this, FileUploader);
+
+    this.file = file;
+
+    this.options = _util2["default"].extend({
+      url: "/upload",
+      chunk_size: 100 * 1024 // 100 KB
+    }, options);
+
+    this.file_size = file.size;
+
+    this.range_start = 0;
+    this.range_end = this.options.chunk_size;
+
+    if ("mozSlice" in this.file) {
+      this.slice_method = "mozSlice";
+    } else if ("webkitSlice" in this.file) {
+      this.slice_method = "webkitSlice";
+    } else {
+      this.slice_method = "slice";
+    }
+
+    this.upload_request = new XMLHttpRequest();
+    this.upload_request.onload = this.__onChunkComplete.bind(this);
+
+    this.is_paused = false;
+    this.__upload();
+  }
+
+  _createClass(FileUploader, [{
+    key: "__onUploadComplete",
+    value: function __onUploadComplete() {
+      console.log("upload complete");
+    }
+  }, {
+    key: "__upload",
+    value: function __upload() {
+      var chunk = undefined;
+
+      if (this.range_end > this.file_size) {
+        this.range_end = this.file_size;
+      }
+
+      chunk = this.file[this.slice_method](this.range_start, this.range_end);
+
+      this.upload_request.open("POST", this.options.url, true);
+      this.upload_request.overrideMimeType("application/octet-stream");
+
+      if (this.range_start !== 0) {
+        this.upload_request.setRequestHeader("Content-Range", "bytes " + this.range_start + "-" + this.range_end + "/" + this.file_size);
+      }
+
+      this.upload_request.send(chunk);
+    }
+  }, {
+    key: "__onChunkComplete",
+    value: function __onChunkComplete() {
+      if (this.range_end >= this.file_size) {
+        this.__onUploadComplete();
+        return;
+      }
+
+      this.range_start = this.range_end;
+      this.range_end = this.range_start + this.options.chunk_size;
+
+      if (!this.is_paused) {
+        this.__upload();
+      }
+    }
+  }]);
+
+  return FileUploader;
+})();
 
 /* -------------------------------------------------------------------------- */
 
-exports["default"] = Cache;
+exports["default"] = FileUploader;
 module.exports = exports["default"];
 
-},{"../lib/promise":1,"./indexeddb":3}],3:[function(require,module,exports){
+},{"../lib/promise":1,"./util":4}],3:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -212,258 +230,94 @@ var _libPromise = require("../lib/promise");
 
 var _libPromise2 = _interopRequireDefault(_libPromise);
 
-/* -------------------------------------------------------------------------- */
+var _file_uploader = require("./file_uploader");
 
-window.indexedDB = window.indexedDB || window.webkitIndexedDB || window.mozIndexedDB || window.OIndexedDB || window.msIndexedDB;
+var _file_uploader2 = _interopRequireDefault(_file_uploader);
 
-window.IDBTransaction = window.IDBTransaction || window.webkitIDBTransaction || window.OIDBTransaction || window.msIDBTransaction;
+var _util = require("./util");
 
-var dbVersion = 1;
-var request = indexedDB.open("indexdb_cache", dbVersion);
-
-request.onsuccess = _onsuccess;
-request.onupgradeneeded = _onupgradeneeded;
+var _util2 = _interopRequireDefault(_util);
 
 /* -------------------------------------------------------------------------- */
 
-function _onsuccess(event) {
-  var db = request.result;
+var Uploader = {
+  __inputs: {},
+  __uploads: [],
 
-  db.onerror = _onerror;
+  watch: function watch(fileInput, key) {
+    var self = this;
 
-  if (db.setVersion) {
-    if (db.version != dbVersion) {
-      var setVersion = db.setVersion(dbVersion);
-
-      setVersion.onsuccess = function () {
-        _createObjectStore(db);
-      };
-    }
-  } else {
-    _initialize(db);
-  }
-}
-
-function _onerror(err) {
-  console.error("Database Error", err, err.stack);
-}
-
-function _onupgradeneeded(event) {
-  _createObjectStore(event.target.result);
-}
-
-function _removeOldCacheItems(db) {
-  var promise = new _libPromise2["default"]();
-  var trans = db.transaction("ledger", IDBTransaction.READ_ONLY);
-  var ledgerStore = trans.objectStore("ledger");
-  var itemsToBeDeleted = [];
-  var deletedItemsPromises = [];
-
-  trans.oncomplete = function () {
-    if (itemsToBeDeleted.length) {
-      itemsToBeDeleted.forEach(function (item) {
-        var ledgerPromise = IDB.removeLedgerItem(item.blobId);
-        var blobPromise = IDB.removeBlobItem(item.blobId);
-
-        deletedItemsPromises.push(ledgerPromise);
-        deletedItemsPromises.push(blobPromise);
-      });
-
-      _libPromise2["default"].all(deletedItemsPromises).then(function () {
-        promise.resolve();
-      });
-    } else {
-      promise.resolve();
-    }
-  };
-
-  var cursorRequest = ledgerStore.openCursor();
-
-  cursorRequest.onerror = _onerror;
-
-  cursorRequest.onsuccess = function (event) {
-    var cursor = event.target.result;
-
-    if (cursor) {
-      var element = cursor.value;
-      var removalDate = element.removalDate;
-
-      if (removalDate < Date.now()) {
-        itemsToBeDeleted.push(cursor.value);
-      }
-
-      cursor["continue"]();
-    }
-  };
-
-  return promise;
-}
-
-function _initialize(db) {
-  // sneaky set the _db without triggering promise saying were ready
-  IDB._db = db;
-
-  _removeOldCacheItems(db).then(function () {
-    IDB.db = db;
-  });
-}
-
-function _createObjectStore(db) {
-  var blobStore = db.createObjectStore("blobs");
-  var ledgerStore = db.createObjectStore("ledger");
-}
-
-/* -------------------------------------------------------------------------- */
-
-var IDB = Object.defineProperties({
-  _readyPromise: new _libPromise2["default"](),
-
-  addLedgerItem: function addLedgerItem(key, params) {
-    var promise = new _libPromise2["default"]();
-    var transaction = this._db.transaction(["ledger"], "readwrite");
-
-    var objectStore = transaction.objectStore("ledger");
-    var request = objectStore.put(params, key);
-
-    request.onsuccess = function () {
-      promise.resolve(true);
-    };
-
-    request.onerror = function (err) {
-      promise.reject(err);
-    };
-
-    return promise;
-  },
-
-  addBlobItem: function addBlobItem(key, blob) {
-    var promise = new _libPromise2["default"]();
-    var transaction = this._db.transaction(["blobs"], "readwrite");
-
-    var objectStore = transaction.objectStore("blobs");
-    var request = objectStore.put(blob, key);
-
-    request.onsuccess = function () {
-      promise.resolve(true);
-    };
-
-    request.onerror = function (err) {
-      promise.reject(err);
-    };
-
-    return promise;
-  },
-
-  removeLedgerItem: function removeLedgerItem(key) {
-    var promise = new _libPromise2["default"]();
-    var transaction = this._db.transaction(["ledger"], "readwrite");
-
-    var objectStore = transaction.objectStore("ledger");
-    var request = objectStore["delete"](key);
-
-    request.onsuccess = (function (promise) {
+    var handleFiles = (function (key) {
       return function () {
-        promise.resolve(true);
-      };
-    })(promise);
+        var fileList = this.files;
 
-    request.onerror = function (err) {
-      promise.reject(err);
-    };
-
-    return promise;
-  },
-
-  removeBlobItem: function removeBlobItem(key) {
-    var promise = new _libPromise2["default"]();
-    var transaction = this._db.transaction(["blobs"], "readwrite");
-
-    var objectStore = transaction.objectStore("blobs");
-    var request = objectStore["delete"](key);
-
-    request.onsuccess = (function (promise) {
-      return function () {
-        promise.resolve(true);
-      };
-    })(promise);
-
-    request.onerror = function (err) {
-      promise.reject(err);
-    };
-
-    return promise;
-  },
-
-  getBlobItem: function getBlobItem(key) {
-    var promise = new _libPromise2["default"]();
-    var transaction = this._db.transaction(["blobs"], IDBTransaction.READ);
-
-    var objectStore = transaction.objectStore("blobs");
-    var request = objectStore.get(key);
-
-    request.onsuccess = function () {
-      promise.resolve(request.result);
-    };
-
-    request.onerror = function (err) {
-      promise.reject(err);
-    };
-
-    return promise;
-  },
-
-  getLedgerItem: function getLedgerItem(key) {
-    var promise = new _libPromise2["default"]();
-    var transaction = this._db.transaction(["ledger"], IDBTransaction.READ);
-
-    var objectStore = transaction.objectStore("ledger");
-    var request = objectStore.get(key);
-
-    request.onsuccess = function () {
-      promise.resolve(request.result);
-    };
-
-    request.onerror = function (err) {
-      promise.reject(err);
-    };
-
-    return promise;
-  }
-}, {
-  db: {
-    get: function () {
-      var _this = this;
-
-      this._readyPromise = new _libPromise2["default"]();
-
-      setTimeout(function (v) {
-        if (_this._db) {
-          _this._readyPromise.resolve(_this._db);
-          _this._readyPromise = null;
+        if (fileList.length) {
+          self.__inputs[key] = fileList;
         }
-      });
+      };
+    })(key);
 
-      return this._readyPromise;
-    },
-    set: function (obj) {
-      this._db = obj;
+    this.__inputs[key] = [];
 
-      if (this._readyPromise === null) return;
+    fileInput.addEventListener("change", handleFiles, false);
+  },
 
-      this._readyPromise.resolve(this._db);
-      this._readyPromise = null;
-    },
-    configurable: true,
-    enumerable: true
+  remove: function remove(key) {},
+
+  startUpload: function startUpload(key) {
+    var files = this.__inputs[key];
+
+    for (var i = 0; i < files.length; i++) {
+      var file = files[i];
+
+      this.__uploads.push(new _file_uploader2["default"](file));
+    }
   }
-});
+};
 
 /* -------------------------------------------------------------------------- */
 
-exports["default"] = IDB;
+exports["default"] = Uploader;
 module.exports = exports["default"];
 
-},{"../lib/promise":1}]},{},[2])(2)
+},{"../lib/promise":1,"./file_uploader":2,"./util":4}],4:[function(require,module,exports){
+"use strict";
+
+Object.defineProperty(exports, "__esModule", {
+    value: true
+});
+var Util = {
+    extend: (function (_extend) {
+        function extend(_x, _x2) {
+            return _extend.apply(this, arguments);
+        }
+
+        extend.toString = function () {
+            return _extend.toString();
+        };
+
+        return extend;
+    })(function (dest, source) {
+        for (var k in source) {
+            if (source.hasOwnProperty(k)) {
+                var value = source[k];
+                if (dest.hasOwnProperty(k) && typeof dest[k] === "object" && typeof value === "object") {
+
+                    extend(dest[k], value);
+                } else {
+                    dest[k] = value;
+                }
+            }
+        }
+
+        return dest;
+    })
+};
+
+exports["default"] = Util;
+module.exports = exports["default"];
+
+},{}]},{},[3])(3)
 });
 
 
